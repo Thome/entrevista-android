@@ -3,6 +3,7 @@ import 'package:starwiki/fetcher.dart';
 import 'package:starwiki/database_helper.dart';
 import 'package:starwiki/personDetailScreen.dart';
 import 'dart:io';
+import 'dart:math';
 
 void main() => runApp(MyApp());
 
@@ -35,23 +36,26 @@ class _MyHomePageState extends State<MyHomePage> {
   TextEditingController editingController = TextEditingController();
   DatabaseHelper databaseHelper = DatabaseHelper();
 
-  bool _isLoading;
+  int _resultsPage = 1;
+  bool _isLoading;  
+  bool _hasMore;
   bool _showingFavorites;
-  //String _searchQuery;
   final _peopleDatabaseList = List<People>();
   final _peopleList = List<People>();
+  final _resultsList = List<People>();
 
   @override
   void initState() {
     super.initState();
     _isLoading = true;
+    _hasMore = true;
     _showingFavorites = false;
-    //_searchQuery = '';
     _getPeople();
+    //_loadPeople();
   }
 
   void _getPeople() async {
-    _isLoading = true;
+    //_isLoading = true;
     List<People> databaseList = List<People>();
     var result;
 
@@ -86,6 +90,24 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  void _loadPeople() {
+    _isLoading = true;
+    int pageStart = (_resultsPage-1)*10;
+    if (pageStart > _peopleList.length || _peopleList.length == 0) {
+      setState(() {
+        _isLoading = false;
+        _hasMore = false;
+      });
+    } else {
+      int pageEnd = min((_resultsPage*10),_peopleList.length);
+      setState(() {
+        _isLoading = false;
+        _resultsPage++;
+        _resultsList.addAll(_peopleList.getRange(pageStart, pageEnd));
+      });
+    }
+  }
+
   Future<People> _addFavoriteOnStart(People person, String id) async {
     await _favoriteHandler.createFavorite(person, id).then((Map<String, String> response) async {
       if (response["status"] == "success") {
@@ -118,22 +140,26 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _updateFavorite(People person, String isFav) async {
-    int personDatabaseIndex, personListIndex;
+    int personDatabaseIndex, personListIndex, resultListIndex;
     personDatabaseIndex = _peopleDatabaseList.indexOf(person);
     personListIndex = _peopleList.indexOf(person);
+    resultListIndex = _resultsList.indexOf(person);
     setState(() {
       _peopleDatabaseList[personDatabaseIndex].isFav = isFav;
       _peopleList[personListIndex].isFav = isFav;
+      _resultsList[resultListIndex].isFav = isFav;
     });
   }
 
   void _saveFavoriteForLater(People person, String id) async {
-    int personDatabaseIndex, personListIndex;
+    int personDatabaseIndex, personListIndex, resultListIndex;
     personDatabaseIndex = _peopleDatabaseList.indexOf(person);
     personListIndex = _peopleList.indexOf(person);
+    resultListIndex = _resultsList.indexOf(person);
     setState(() {
       _peopleDatabaseList[personDatabaseIndex].favLater = id;
       _peopleList[personListIndex].favLater = id;
+      _resultsList[resultListIndex].favLater = id;
     });
   }
 
@@ -241,6 +267,8 @@ class _MyHomePageState extends State<MyHomePage> {
               setState(() {
                 _showingFavorites ? _showingFavorites = false : _showingFavorites = true;
                 _peopleList.clear();
+                _resultsList.clear();
+                _resultsPage = 1;
                 _peopleList.addAll(_filterSearch(editingController.text));
               });
             }
@@ -257,6 +285,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   List<People> filteredList = _filterSearch(value);
                   setState(() {
                     _peopleList.clear();
+                    _resultsList.clear();
+                    _resultsPage = 1;
                     _peopleList.addAll(filteredList);
                   });
                 },
@@ -270,7 +300,7 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
             Expanded(
-              child: resultsList(_peopleList),
+              child: resultsList(_resultsList),
             )
           ]
         ),
@@ -280,9 +310,12 @@ class _MyHomePageState extends State<MyHomePage> {
 
   ListView resultsList(List<People> resultsList) {
       return ListView.builder(
-        itemCount: _isLoading ? 1 : resultsList.length,
+        itemCount: _hasMore ? resultsList.length+1 : resultsList.length,
         itemBuilder: (BuildContext context, int index) {
-          if (_isLoading) {
+          if (index >= _resultsList.length) {
+            if (!_isLoading){
+              _loadPeople();
+            }
             return Center(
               child: SizedBox(
                 child: CircularProgressIndicator(),                
@@ -345,7 +378,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
 /*
 
-1. Implement lazy loading
+1. Implement lazy loading with third list for results
 2. Optional aesthetic changes
 
 */
