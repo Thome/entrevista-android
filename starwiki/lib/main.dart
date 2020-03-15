@@ -40,6 +40,7 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _isLoading;  
   bool _hasMore;
   bool _showingFavorites;
+  bool _isUpdated;
   final _peopleDatabaseList = List<People>();
   final _peopleList = List<People>();
   final _resultsList = List<People>();
@@ -50,12 +51,12 @@ class _MyHomePageState extends State<MyHomePage> {
     _isLoading = true;
     _hasMore = true;
     _showingFavorites = false;
-    _getPeople();
-    //_loadPeople();
+    _isUpdated = false;
+    //_getPeople();
+    _loadPeople();
   }
 
-  void _getPeople() async {
-    //_isLoading = true;
+  Future<void> _getPeople() async {
     List<People> databaseList = List<People>();
     var result;
 
@@ -83,15 +84,18 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     }
 
-    setState(() {
-      _peopleDatabaseList.addAll(databaseList);
-      _peopleList.addAll(_peopleDatabaseList);
-      _isLoading = false;
-    });
+    _peopleDatabaseList.addAll(databaseList);
+    _peopleList.addAll(_peopleDatabaseList);
+    _isUpdated = true;
   }
 
-  void _loadPeople() {
+  void _loadPeople() async {
     _isLoading = true;
+
+    if (!_isUpdated) {
+      await _getPeople();
+    }
+
     int pageStart = (_resultsPage-1)*10;
     if (pageStart > _peopleList.length || _peopleList.length == 0) {
       setState(() {
@@ -104,6 +108,7 @@ class _MyHomePageState extends State<MyHomePage> {
         _isLoading = false;
         _resultsPage++;
         _resultsList.addAll(_peopleList.getRange(pageStart, pageEnd));
+        //breakpoint
       });
     }
   }
