@@ -5,6 +5,10 @@ import 'package:starwiki/personDetailScreen.dart';
 import 'dart:io';
 import 'dart:math';
 
+import 'dart:async';
+import 'package:incrementally_loading_listview/incrementally_loading_listview.dart';
+//import 'package:shimmer/shimmer.dart';
+
 void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
@@ -44,19 +48,20 @@ class _MyHomePageState extends State<MyHomePage> {
   final _peopleDatabaseList = List<People>();
   final _peopleList = List<People>();
   final _resultsList = List<People>();
+  Future _initialLoad;
 
   @override
-  void initState() {
+  void initState() async {
     super.initState();
     _isLoading = true;
     _hasMore = true;
     _showingFavorites = false;
-    _isUpdated = false;
-    //_getPeople();
-    _loadPeople();
+    _isUpdated = false;    
+    _initialLoad = _loadPeople();
+    await _getPeople();
   }
 
-  Future<void> _getPeople() async {
+  Future _getPeople() async {
     List<People> databaseList = List<People>();
     var result;
 
@@ -89,12 +94,8 @@ class _MyHomePageState extends State<MyHomePage> {
     _isUpdated = true;
   }
 
-  void _loadPeople() async {
+  Future _loadPeople() async {
     _isLoading = true;
-
-    if (!_isUpdated) {
-      await _getPeople();
-    }
 
     int pageStart = (_resultsPage-1)*10;
     if (pageStart > _peopleList.length || _peopleList.length == 0) {
@@ -305,7 +306,7 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
             Expanded(
-              child: resultsList(_resultsList),
+              child: resultsList(),
             )
           ]
         ),
@@ -313,29 +314,39 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  ListView resultsList(List<People> resultsList) {
-      return ListView.builder(
-        itemCount: _hasMore ? resultsList.length+1 : resultsList.length,
-        itemBuilder: (BuildContext context, int index) {
-          if (index >= _resultsList.length) {
-            if (!_isLoading){
-              _loadPeople();
-            }
-            return Center(
-              child: SizedBox(
-                child: CircularProgressIndicator(),                
-                height: 24,
-                width: 24,
-              ),
-            );
+  Widget resultsList() {
+      return FutureBuilder(
+        future: _initialLoad,
+        builder: (context, snapshot) {
+          switch (snapshot.connectionState) {
+            case ConnectionState.waiting:
+              return Center(child: CircularProgressIndicator());
+            case ConnectionState.done:
+              return IncrementallyLoadingListView(
+                hasMore: () => _hasMore,
+                itemCount: () => _resultsList.length,
+                loadMore: () async {
+                  await _loadPeople();
+                },
+                onLoadMore: () {
+                  setState(() {
+                    _isLoading = true;
+                  });
+                },
+                onLoadMoreFinished: () {
+                  setState(() {
+                    _isLoading = false;
+                  });
+                },
+                itemBuilder: (context, index) {
+                  final person = _resultsList[index];
+                  return _buildRow(person);
+                },
+              );
+            default:
+              return Text('Something went wrong');
           }
-          return Column(
-            children: <Widget>[
-              _buildRow(resultsList[index]),
-            ],
-          );
-        }
-      );
+        });
     }
 
   Widget _buildRow(People person) {
